@@ -9,6 +9,7 @@
 plugins {
     // Apply the groovy plugin to add support for Groovy
     id 'groovy'
+    id "com.github.ben-manes.versions" version "0.21.0"
 }
 
 repositories {
@@ -28,3 +29,58 @@ dependencies {
 wrapper {
     distributionType = Wrapper.DistributionType.ALL
 }
+
+dependencyUpdates {
+    boolean failOnUpdate = true
+    List<String> ignoredUpdates = [
+            /org.codehaus.groovy:groovy.*/,
+            /org.gradle:gradle/
+    ]
+    onlyIf {
+        project.version && (project.version as String).endsWith('-SNAPSHOT')
+    }
+    outputFormatter = { com.github.benmanes.gradle.versions.reporter.result.Result result ->
+        Closure<Boolean> shouldIgnore = { String groupAndArtifact ->
+            ignoredUpdates.any { groupAndArtifact ==~ it }
+        }
+        boolean hasUpdates = false
+        result.outdated.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyOutdated outdated ->
+            if (!shouldIgnore("${outdated.group}:${outdated.name}")) {
+                project.logger.warn(
+                        "There is outdated dependency:" +
+                                " ${outdated.group}:${outdated.name}:${outdated.version}" +
+                                " -> ${outdated.available.release ?: outdated.available.milestone}")
+                hasUpdates = true
+            }
+        }
+        if (result.gradle.current.isUpdateAvailable && result.gradle.current > result.gradle.running) {
+            if (!shouldIgnore("org.gradle:gradle")) {
+                project.logger.warn(
+                        "Gradle is outdated:" +
+                                " ${result.gradle.running.version}" +
+                                " -> ${result.gradle.current.version}")
+                hasUpdates = true
+            }
+        }
+        result.unresolved.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyUnresolved unresolved ->
+            project.logger.warn(
+                    "Could not determine latest version for" +
+                            " ${unresolved.group}:${unresolved.name}:${unresolved.version}" +
+                            " because ${unresolved.reason}")
+        }
+        if (hasUpdates && failOnUpdate) {
+            throw new GradleException("Dependencies have to be updated!")
+        }
+    }
+    resolutionStrategy = { ResolutionStrategy strategy ->
+        strategy.componentSelection { rules ->
+            rules.all { ComponentSelection selection ->
+                if (selection.candidate.version =~ /redhat/ || ['alpha', 'beta', 'rc', 'cr', 'm', 'preview'].
+                        any { qualifier -> selection.candidate.version =~ /(?i)\b${qualifier}\d*\b/ }) {
+                    selection.reject('Release candidate')
+                }
+            }
+        }
+    }
+}
+check.dependsOn dependencyUpdates
