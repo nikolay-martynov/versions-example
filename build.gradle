@@ -6,11 +6,13 @@
  * User Manual available at https://docs.gradle.org/5.4.1/userguide/tutorial_groovy_projects.html
  */
 
+// tag::plugins[]
 plugins {
     // Apply the groovy plugin to add support for Groovy
     id 'groovy'
-    id "com.github.ben-manes.versions" version "0.21.0"
+    id "com.github.ben-manes.versions" version "0.21.0" // <1>
 }
+// end::plugins[]
 
 repositories {
     // Use jcenter for resolving your dependencies.
@@ -18,33 +20,36 @@ repositories {
     jcenter()
 }
 
+// tag::dependencies[]
 dependencies {
     // Use the latest Groovy version for building this library
-    implementation 'org.codehaus.groovy:groovy-all:2.5.6'
+    implementation 'org.codehaus.groovy:groovy-all:2.5.6' // <1>
 
     // Use the awesome Spock testing and specification framework
-    testImplementation 'org.spockframework:spock-core:1.2-groovy-2.5'
+    testImplementation 'org.spockframework:spock-core:1.2-groovy-2.5' // <2>
 }
+// end::dependencies[]
 
 wrapper {
     distributionType = Wrapper.DistributionType.ALL
 }
 
+// tag::dependencyUpdates[]
 dependencyUpdates {
-    boolean failOnUpdate = true
-    List<String> ignoredUpdates = [
-            /org.codehaus.groovy:groovy.*/,
-            /org.gradle:gradle/
+    boolean failOnUpdate = true // <1>
+    List<String> ignoredUpdates = [ // <2>
+            /org.codehaus.groovy:groovy.*/, // <3>
+            /org.gradle:gradle/ // <4>
     ]
     onlyIf {
-        project.version && (project.version as String).endsWith('-SNAPSHOT')
+        project.version && (project.version as String).endsWith('-SNAPSHOT') // <5>
     }
-    outputFormatter = { com.github.benmanes.gradle.versions.reporter.result.Result result ->
+    outputFormatter = { com.github.benmanes.gradle.versions.reporter.result.Result result -> // <6>
         Closure<Boolean> shouldIgnore = { String groupAndArtifact ->
             ignoredUpdates.any { groupAndArtifact ==~ it }
         }
         boolean hasUpdates = false
-        result.outdated.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyOutdated outdated ->
+        result.outdated.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyOutdated outdated -> // <7>
             if (!shouldIgnore("${outdated.group}:${outdated.name}")) {
                 project.logger.warn(
                         "There is outdated dependency:" +
@@ -53,7 +58,7 @@ dependencyUpdates {
                 hasUpdates = true
             }
         }
-        if (result.gradle.current.isUpdateAvailable && result.gradle.current > result.gradle.running) {
+        if (result.gradle.current.isUpdateAvailable && result.gradle.current > result.gradle.running) { // <8>
             if (!shouldIgnore("org.gradle:gradle")) {
                 project.logger.warn(
                         "Gradle is outdated:" +
@@ -62,17 +67,17 @@ dependencyUpdates {
                 hasUpdates = true
             }
         }
-        result.unresolved.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyUnresolved unresolved ->
+        result.unresolved.dependencies.each { com.github.benmanes.gradle.versions.reporter.result.DependencyUnresolved unresolved -> // <9>
             project.logger.warn(
                     "Could not determine latest version for" +
                             " ${unresolved.group}:${unresolved.name}:${unresolved.version}" +
                             " because ${unresolved.reason}")
         }
-        if (hasUpdates && failOnUpdate) {
+        if (hasUpdates && failOnUpdate) { // <10>
             throw new GradleException("Dependencies have to be updated!")
         }
     }
-    resolutionStrategy = { ResolutionStrategy strategy ->
+    resolutionStrategy = { ResolutionStrategy strategy -> // <11>
         strategy.componentSelection { rules ->
             rules.all { ComponentSelection selection ->
                 if (selection.candidate.version =~ /redhat/ || ['alpha', 'beta', 'rc', 'cr', 'm', 'preview'].
@@ -83,4 +88,5 @@ dependencyUpdates {
         }
     }
 }
-check.dependsOn dependencyUpdates
+check.dependsOn dependencyUpdates // <12>
+// end::dependencyUpdates[]
